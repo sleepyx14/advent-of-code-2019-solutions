@@ -19,7 +19,7 @@ fs.readFile('day2-1.txt','utf-8',(err,data) => {
 			curprogram[2] = verb
 
 			curprogram = procinput(curprogram)
-		
+
 			if(curprogram[0] == 19690720){
 				console.log("solution:",100 * noun + verb)
 				process.exit(22) // exit since we found a solution
