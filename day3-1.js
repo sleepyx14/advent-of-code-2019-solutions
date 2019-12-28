@@ -1,30 +1,26 @@
+const {intersect} = require('mathjs')
 const fs = require('fs')
+const readline = require('readline')
 
 const fileparser = (filepath) => {
+	let wiredata = []
 
-	/*
-		Assumes that the input file
-		contains an json object that
-		matches the following pattern
+	const readInterface = readline.createInterface({
+		input: fs.createReadStream(filepath),
+		output: process.stdout,
+		console: false
+	})
 
-		{
-			"wire1": <Array of strings that represent the path of the wire>,
-			"wire2": <Array of strings that represent the path of the wire>
-		}
-	*/
+	readInterface.on('line', function(line) {
+		wiredata.push(line.split(","))
+	})
 
-	fs.readFile(filepath,'utf-8',(err,data) => {
-		if (err) {
-			console.error(err)
-			return
-		}
+	readInterface.on('close', () => {
+		const wire1coords = convertPathToCoordinates(wiredata[0])
+		const wire2coords = convertPathToCoordinates(wiredata[1])
 
-		const wiredata = JSON.parse(data)
-		const wire1coords = convertPathToCoordinates(wiredata.wire1)
-		const wire2coords = convertPathToCoordinates(wiredata.wire2)
-
-		console.log('wire1',wire1coords)
-		console.log('wire2',wire2coords)
+		// console.log('wire1',JSON.stringify(wire1coords,null,4))
+		// console.log('wire2',JSON.stringify(wire2coords,null,4))
 
 		// find shortest Manhattan distance
 		console.log('answer',getShortestLength(wire1coords,wire2coords))
@@ -83,113 +79,34 @@ const convertPathToCoordinates = (pathlist) => {
 		y = newcoords.y
 		coordinates.push([x,y])
 	}
-
+	// console.log(coordinates)
+	coordinates = addgappoints(coordinates)
 	return coordinates
 }
 
 const getShortestLength = (w1,w2) => {
 	let len
 
-	// check each point in w1
-	// vs each line segment in
-	// w2
+	w1.forEach(point => {
+		let calclen
 
-	w1.forEach(wpoint => {
-		for(let i = 0; i < w2.length-1; i++){
-			let j = i + 1
-			let compindex
-			let curlen = 0
+		if(inlist(point,w2) == true){
+			calclen = Math.abs(point[0]) + Math.abs(point[1])
 
-			const curcoord = w2[i]
-			const nxtcoord = w2[j]
-
-			// determine if we need to check
-			// the x or y coordinate for this
-			// pair of coordinates
-
-			if(curcoord[0] === nxtcoord[0]){
-				// in this case we've moved vertically
-				// so compare using the y coord
-				compindex = 1
-			}
-			else if(curcoord[1] === nxtcoord[1]){
-				// in this case we've moved horizontally
-				// so compare using the x coord
-				compindex = 0
-			}
-			else{
-				// in this case invalid data was
-				// passed in which indicates an
-				// error elsewhere so natrually
-				// we just terminate the program
-				// all together
-				console.log("Invalid data",w1,w2)
-				process.exit(-1)
-			}
-
-			if((curcoord[compindex] >= wpoint[compindex] && nxtcoord[compindex] <= wpoint[compindex]) || (nxtcoord[compindex] >= wpoint[compindex] && curcoord[compindex] <= wpoint[compindex])){
-				curlen = MHDist(curcoord,nxtcoord)
-
-				console.log('curcoord',curcoord)
-				console.log('nxtcoord',nxtcoord)
-				console.log('wpoint',wpoint)
-				console.log('curlen',curlen)
-
-				if(curlen > 0 && (curlen < len || len == undefined)){
-					len = curlen
-				}
+			if(calclen > 0 && (calclen < len || len == undefined)){
+				len = calclen
 			}
 		}
 	})
 
-	// check each point in w2
-	// vs each line segment in
-	// w1
+	w2.forEach(point => {
+		let calclen
 
-	w2.forEach(wpoint => {
-		for(let i = 0; i < w1.length-1; i++){
-			let j = i + 1
-			let compindex
-			let curlen = 0
+		if(inlist(point,w1) == true){
+			calclen = Math.abs(point[0]) + Math.abs(point[1])
 
-			const curcoord = w1[i]
-			const nxtcoord = w1[j]
-
-			// determine if we need to check
-			// the x or y coordinate for this
-			// pair of coordinates
-
-			if(curcoord[0] === nxtcoord[0]){
-				// in this case we've moved vertically
-				// so compare using the y coord
-				compindex = 1
-			}
-			else if(curcoord[1] === nxtcoord[1]){
-				// in this case we've moved horizontally
-				// so compare using the x coord
-				compindex = 0
-			}
-			else{
-				// in this case invalid data was
-				// passed in which indicates an
-				// error elsewhere so natrually
-				// we just terminate the program
-				// all together
-				console.log("Invalid data",w1,w2)
-				process.exit(-1)
-			}
-
-			if((curcoord[compindex] >= wpoint[compindex] && nxtcoord[compindex] <= wpoint[compindex]) || (nxtcoord[compindex] >= wpoint[compindex] && curcoord[compindex] <= wpoint[compindex])){
-				curlen = MHDist(curcoord,nxtcoord)
-
-				console.log('curcoord',curcoord)
-				console.log('nxtcoord',nxtcoord)
-				console.log('wpoint',wpoint)
-				console.log('curlen',curlen)
-
-				if(curlen > 0 && (curlen < len || len == undefined)){
-					len = curlen
-				}
+			if(calclen > 0 && (calclen < len || len == undefined)){
+				len = calclen
 			}
 		}
 	})
@@ -197,6 +114,73 @@ const getShortestLength = (w1,w2) => {
 	return len
 }
 
-const MHDist = (p,q) => {return Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1])}
+const addgappoints = (coords) => {
+	let updatedcoords = Array.from(coords)
 
-fileparser('day3-1-test1.json')
+	for(let i = 0; i < coords.length-1; i++){
+
+		let curpoint = coords[i]
+		let nxtpoint = coords[(i + 1)]
+		let points = []
+		let start
+		let end
+		let dim
+		let static
+		let rev = true
+		let insertpoint = updatedcoords.indexOf(nxtpoint)
+
+		if(curpoint[0] == nxtpoint[0]){
+			start = curpoint[1]
+			end = nxtpoint[1]
+
+			if(start > end){
+				start = nxtpoint[1]
+				end = curpoint[1]
+				rev = false
+			}
+
+			dim = 'y'
+			static = curpoint[0]
+			start++
+		}
+		else if(curpoint[1] == nxtpoint[1]){
+			start = curpoint[0]
+			end = nxtpoint[0]
+
+			if(start > end){
+				start = nxtpoint[0]
+				end = curpoint[0]
+				rev = false
+			}
+
+			dim = 'x'
+			static = curpoint[1]
+			start++
+		}
+
+		if(start && end){
+			for(let a = start; a < end; a++){
+				if(dim == 'x'){
+					points.push([a,static])
+				}
+				else if(dim == 'y'){
+					points.push([static,a])
+				}
+			}
+
+			if(rev == true){
+				points.reverse().forEach(point => updatedcoords.splice(insertpoint,0,point))
+			}
+			else{
+				points.forEach(point => updatedcoords.splice(insertpoint,0,point))
+			}
+		}
+	}
+	return updatedcoords
+}
+
+const inlist = (element,arr) => {
+	return arr.some((testarr) => (testarr[0] == element[0] && testarr[1] == element[1]))
+}
+
+fileparser('day3-1-input.txt')
